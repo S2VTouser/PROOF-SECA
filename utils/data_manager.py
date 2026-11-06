@@ -9,7 +9,7 @@ from utils.data import iCIFAR10, iCIFAR100, iImageNet100, iImageNet1000, iCIFAR2
 import json
 
 class DataManager(object):
-    def __init__(self, dataset_name, shuffle, seed, init_cls, increment):
+    def __init__(self, dataset_name, shuffle, seed, init_cls, increment, class_order=None):
 
         # load class to label name json file
         with open('./utils/labels.json', 'r') as f:
@@ -21,7 +21,7 @@ class DataManager(object):
         
         
         self.dataset_name = dataset_name
-        self._setup_data(dataset_name, shuffle, seed)
+        self._setup_data(dataset_name, shuffle, seed, class_order)
         # assert init_cls <= len(self._class_order), "No enough classes."
         if init_cls > len(self._class_order):
             print("No enough classes.")
@@ -138,7 +138,7 @@ class DataManager(object):
 
         return DummyDataset(train_data, train_targets, trsf, self.use_path), DummyDataset(val_data, val_targets, trsf, self.use_path)
 
-    def _setup_data(self, dataset_name, shuffle, seed):
+    def _setup_data(self, dataset_name, shuffle, seed, class_order=None):
         idata = _get_idata(dataset_name)
         idata.download_data()
 
@@ -154,7 +154,13 @@ class DataManager(object):
 
         # Order
         order = [i for i in range(len(np.unique(self._train_targets)))]
-        if shuffle:
+        if class_order is not None:
+            if shuffle:
+                np.random.seed(seed)
+            if sorted(class_order) != order:
+                raise ValueError("Class order must match the dataset class IDs")
+            order = list(class_order)
+        elif shuffle:
             np.random.seed(seed)
             order = np.random.permutation(len(order)).tolist()
         else:

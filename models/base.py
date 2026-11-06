@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from utils.toolkit import tensor2numpy, accuracy
+from utils.comparison import task_accuracies
 from scipy.spatial.distance import cdist
 
 EPSILON = 1e-8
@@ -89,6 +90,10 @@ class BaseLearner(object):
     def eval_task(self):
         y_pred, y_true = self._eval_cnn(self.test_loader)
         cnn_accy = self._evaluate(y_pred, y_true)
+        cnn_accy["acc_per_task"] = task_accuracies(
+            y_pred, y_true,
+            [self.data_manager.get_task_size(i) for i in range(self._cur_task + 1)],
+        )
 
         if hasattr(self, "_class_means"):
             y_pred, y_true = self._eval_nme(self.test_loader, self._class_means)

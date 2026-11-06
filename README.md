@@ -112,3 +112,65 @@ This repo is based on [CIL_Survey](https://github.com/zhoudw-zdw/CIL_Survey) and
 
 If you have any questions, please  contact me via [email](mailto:zhoudw@lamda.nju.edu.cn) or open an [issue](https://github.com/zhoudw-zdw/Proof/issues/new).
 
+
+## SECA class orders and forgetting
+
+Install `PyYAML` in the existing PROOF environment (`pip install PyYAML`). Run
+from the repository root:
+
+```bash
+python main.py --config exps/cifar_seca.json
+```
+
+This config differs from `exps/cifar.json` only by these two fields:
+
+```json
+"class_order_file": "class_orders/cifar100_order.yaml",
+"class_order_idx": [0, 1, 2]
+```
+
+Each order runs with a fresh model, using the original seed list and all original
+PROOF training settings. An explicit order overrides `shuffle`; omitting
+`class_order_file` retains the original random-order behavior. A single integer
+or a subset such as `[1, 2]` can select individual runs. Do not substitute three
+random seeds for the three supplied orders. PROOF's existing `_set_random()`
+behavior is retained.
+
+The three YAML files are copied byte-for-byte from
+[SECA_AAAI2026](https://github.com/HHHLF/SECA_AAAI2026/tree/84e6c14702bac6b311b5dc61f2b7a839ecb2acb5/class_orders)
+(commit `84e6c14702bac6b311b5dc61f2b7a839ecb2acb5`). For ImageNet-R use
+`class_orders/imagenet_R_order.yaml` with PROOF's `imagenetr`; for ImageNet-A use
+`class_orders/imagenet_A_order.yaml` with `imageneta`. Add the same two fields to
+your existing experiment JSON without changing its other settings. CIFAR100 is
+called `cifar224` in PROOF. CIFAR IDs follow the standard CIFAR100 labels;
+ImageNet IDs require identical ImageFolder class-to-index mappings and identical
+train/test splits across the projects. Numeric permutations alone cannot verify
+that separately prepared ImageNet datasets match.
+
+Each run writes `..._order0.log` / `..._order0.metrics.jsonl` (and order1/order2)
+under the original `logs/<model>/<dataset>/<init>/<increment>/` directory. The
+JSONL header records the seed and full applied order. Subsequent records contain
+`task`, `acc`, `acc_per_task`, `fg`, and `seca_fg`; the last task's values are the
+final forgetting results. Rerunning a run replaces its JSONL file.
+
+`acc_per_task` uses unrounded top-1 percentages from the existing class-incremental
+predictions over **all seen classes**, partitioned by actual task boundaries
+(including a larger initial task or shorter final task). No extra inference,
+task-label masking, loss, training, rehearsal, transform, optimizer, or task-size
+change is introduced.
+
+For T completed tasks, standard `fg` is
+`mean_j(max_{i=j,...,T-2} A[i,j] - A[T-1,j])`, for `j=0,...,T-2`,
+in percentage points; it is zero for the first task. Negative values are retained.
+`seca_fg` instead exactly reproduces SECA's pinned `continuum==1.2.7` implementation:
+it sums only `j=0,...,T-3`, takes maxima over `i=j,...,T-3`, and divides by `T-1`.
+That implementation omits the most recent old task and the most recent previous
+evaluation; its second-task value is always zero. Use `seca_fg` against SECA's
+existing `forgetting` logs, and use `fg` when reporting the standard definition.
+Keep these two definitions separate.
+
+CPU regression checks (no datasets or pretrained weights needed):
+
+```bash
+python -m unittest discover -s tests -v
+```
